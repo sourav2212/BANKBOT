@@ -1,14 +1,14 @@
 # 🏦 BANKAI — Intelligent Customer Service Bot
 
-> An AI-powered banking assistant built with RAG, Sentiment Analysis, and Smart Escalation — developed as part of a bank internship project.
+> An AI-powered banking assistant built with RAG, Web Search Fallback, Sentiment Analysis, and Smart Escalation — developed as part of a banking internship project at **Union Bank of India**.
 
 ---
 
 ## 📌 Project Overview
 
-BANKAI is an intelligent customer service chatbot designed for banks. It answers customer queries using the bank's own policy documents, detects customer frustration in real time, and automatically escalates distressed conversations to human agents.
+BANKAI is an intelligent customer service chatbot designed for banks. It answers customer queries using the bank's own policy documents, falls back to live web search when documents are insufficient, detects customer frustration in real time, and automatically escalates distressed conversations to human agents.
 
-This project was built using **LangChain**, **ChromaDB**, **Groq LLM**, **VADER Sentiment Analysis**, and **Streamlit**.
+This project was built using **LangChain**, **ChromaDB**, **Groq LLM**, **Tavily Search API**, **VADER Sentiment Analysis**, and **Streamlit**.
 
 ---
 
@@ -17,10 +17,13 @@ This project was built using **LangChain**, **ChromaDB**, **Groq LLM**, **VADER 
 | Feature | Description |
 |---|---|
 | 🔍 **RAG-Powered Answers** | Answers questions strictly from bank PDF documents — never makes up information |
+| 🌐 **Web Search Fallback** | Automatically searches the web via Tavily API when bank documents don't have the answer |
 | 🧠 **Sentiment Analysis** | Scores every customer message from -1.0 (very negative) to +1.0 (very positive) |
 | ⚡ **Smart Escalation** | Automatically flags frustrated customers and routes them to a human agent |
-| 👤 **User Authentication** | Login and registration system with session management |
+| 👤 **User Authentication** | Login and registration system with session management and multi-role support |
 | 📊 **Agent Dashboard** | Separate dashboard for bank officers to view all escalated conversations |
+| 🌙 **Dark / Light Mode** | Toggle between dark and light themes — preference saved in session |
+| 📄 **Answer Source Labels** | Every response shows whether it came from 📄 bank documents or 🌐 web search |
 | 🎨 **Premium UI** | Clean, professional banking interface built with custom CSS |
 
 ---
@@ -42,8 +45,19 @@ Escalate   RAG Chain
 to Agent   (LLM + ChromaDB)
   │         │
   ▼         ▼
-Log to     Answer from
-CSV        Bank Documents
+Log to     Answer found?
+CSV           │
+         ┌────┴────┐
+         │         │
+        Yes        No
+         │         │
+         ▼         ▼
+    📄 Return   🌐 Tavily Web
+    Doc Answer  Search Fallback
+                    │
+                    ▼
+              Re-answer via LLM
+              using web context
 ```
 
 ---
@@ -52,11 +66,12 @@ CSV        Bank Documents
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Streamlit with custom CSS |
+| **Frontend** | Streamlit with custom CSS + Dark/Light mode |
 | **LLM** | Groq API — llama-3.3-70b-versatile (free tier) |
 | **RAG Framework** | LangChain |
 | **Vector Database** | ChromaDB |
 | **Embeddings** | HuggingFace sentence-transformers/all-MiniLM-L6-v2 |
+| **Web Search** | Tavily Search API (fallback when RAG is insufficient) |
 | **Sentiment Analysis** | VADER (vaderSentiment) |
 | **PDF Processing** | PyMuPDF (fitz) |
 | **Environment** | Python 3.10+, Virtual Environment |
@@ -72,7 +87,7 @@ bank-bot/
 ├── ingest.py                 ← Reads PDFs and builds vector database
 ├── sentiment.py              ← Sentiment scoring and escalation logic
 ├── rag_chain.py              ← RAG pipeline connecting LLM to vector DB
-├── app.py                    ← Main Streamlit chat UI
+├── app.py                    ← Main Streamlit chat UI (with dark mode + web search)
 ├── agent_dashboard.py        ← Human agent escalation dashboard
 ├── escalation_log.csv        ← Auto-generated log of flagged conversations
 ├── .env                      ← Secret API keys (never commit this)
@@ -87,7 +102,7 @@ bank-bot/
 ### Step 1 — Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/bank-bot.git
+git clone https://github.com/sourav2212/BANKBOT.git
 cd bank-bot
 ```
 
@@ -116,13 +131,15 @@ Create a `.env` file in the project root:
 
 ```
 GROQ_API_KEY=your_groq_api_key_here
+TAVILY_API_KEY=your_tavily_api_key_here
 ```
 
-Get a free Groq API key at [console.groq.com](https://console.groq.com)
+- Get a free Groq API key at [console.groq.com](https://console.groq.com)
+- Get a free Tavily API key at [app.tavily.com](https://app.tavily.com) *(1000 searches/month free)*
 
 ### Step 5 — Add bank PDF documents
 
-Place your bank's PDF documents inside the `docs/` folder.  
+Place your bank's PDF documents inside the `docs/` folder.
 These can be:
 - Customer FAQ documents
 - Account opening guides
@@ -169,16 +186,18 @@ You can also register a new account directly from the login screen.
 
 ---
 
-## 🧠 How RAG Works
+## 🧠 How RAG + Web Search Works
 
 1. Bank PDFs are loaded and split into 500-character chunks
 2. Each chunk is converted into a vector embedding using sentence-transformers
 3. All embeddings are stored in ChromaDB (local vector database)
 4. When a customer asks a question, the top 3 most relevant chunks are retrieved
-5. These chunks + the customer question are sent to the Groq LLM
-6. The LLM answers strictly based on the retrieved chunks only
+5. These chunks + the question are sent to the Groq LLM
+6. **If the LLM responds with "I don't have that information"** → Tavily web search is triggered automatically
+7. Web search results are passed back to the LLM for a final, grounded answer
+8. Every response is labelled with its source — 📄 documents or 🌐 web
 
-This ensures the bot never makes up information — it only answers from verified bank documents.
+This ensures the bot never makes up information, and never leaves a question unanswered.
 
 ---
 
@@ -189,13 +208,21 @@ Every customer message is scored by VADER sentiment analysis:
 | Score Range | Label | Action |
 |---|---|---|
 | -1.0 to -0.6 | 😤 FRUSTRATED | Escalate to human agent + log to CSV |
-| -0.6 to 0.05 | 😐 NEUTRAL | Answer normally via RAG |
-| 0.05 to 1.0 | 😊 POSITIVE | Answer normally via RAG |
+| -0.6 to 0.05 | 😐 NEUTRAL | Answer normally via RAG / web |
+| 0.05 to 1.0 | 😊 POSITIVE | Answer normally via RAG / web |
 
 When escalation is triggered:
 - Customer receives an empathetic response
 - Conversation is logged to `escalation_log.csv` with timestamp, message, and score
 - Bank officer can view all escalations on the agent dashboard at port 8502
+
+---
+
+## 🌙 Dark / Light Mode
+
+- Toggle button (🌙 / ☀️) available in the top bar after login
+- Switches the entire UI between a dark navy theme and a clean light theme
+- Preference is saved in session state for the duration of the conversation
 
 ---
 
@@ -222,6 +249,7 @@ When escalation is triggered:
 
 ```toml
 GROQ_API_KEY = "your_groq_api_key_here"
+TAVILY_API_KEY = "your_tavily_api_key_here"
 ```
 
 6. Click Deploy — your app goes live with a public URL in 2-3 minutes
@@ -244,6 +272,8 @@ vaderSentiment
 streamlit
 pandas
 python-dotenv
+tavily-python
+langchain-tavily
 ```
 
 Install all at once:
@@ -251,7 +281,8 @@ Install all at once:
 ```bash
 pip install langchain langchain-community langchain-chroma langchain-groq \
             langchain-core chromadb pypdf pymupdf sentence-transformers \
-            vaderSentiment streamlit pandas python-dotenv
+            vaderSentiment streamlit pandas python-dotenv \
+            tavily-python langchain-tavily
 ```
 
 ---
@@ -259,10 +290,11 @@ pip install langchain langchain-community langchain-chroma langchain-groq \
 ## 💡 Why Banks Care About This Project
 
 - **Reduces call center load** — handles thousands of routine queries automatically
-- **Zero hallucination risk** — bot only answers from verified documents
+- **Zero hallucination risk** — bot answers from verified documents first, web search second
+- **Always has an answer** — web search fallback means no query goes unanswered
 - **Protects customer satisfaction** — frustrated customers are never left with a bot
 - **Audit trail** — every escalation is logged with timestamp for compliance
-- **Cost effective** — runs on free-tier APIs (Groq + HuggingFace)
+- **Cost effective** — runs entirely on free-tier APIs (Groq + HuggingFace + Tavily)
 
 ---
 
@@ -274,13 +306,17 @@ pip install langchain langchain-community langchain-chroma langchain-groq \
 - Add voice input using Whisper ASR
 - Replace CSV logging with PostgreSQL for production use
 - Add Redis queue for managing concurrent escalations
+- Persistent dark mode preference saved to user profile
 
 ---
 
 ## 👨‍💻 Developer
 
-**Sourav**
-Built during banking internship as an AI-powered customer service solution.
+**Sourav Shandilya** — VIT Bhopal University (B.Tech CSE, Batch 2023–2027)
+Built during Summer Internship at **Union Bank of India** as an AI-powered customer service solution.
+
+- 🔗 GitHub: [github.com/sourav2212/BANKBOT](https://github.com/sourav2212/BANKBOT)
+- 🌐 Portfolio: [portfoliosouravs.netlify.app](https://portfoliosouravs.netlify.app)
 
 ---
 
