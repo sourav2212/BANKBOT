@@ -15,22 +15,25 @@ This project was built using **LangChain**, **ChromaDB**, **Groq LLM**, **Tavily
 ## 🎯 Key Features
 
 | Feature | Description |
-|---|---|
-| 🔍 **RAG-Powered Answers** | Answers questions strictly from bank PDF documents — never makes up information |
-| 🌐 **Web Search Fallback** | Automatically searches the web via Tavily API when bank documents don't have the answer |
-| 🧠 **Sentiment Analysis** | Scores every customer message from -1.0 (very negative) to +1.0 (very positive) |
-| ⚡ **Smart Escalation** | Automatically flags frustrated customers and routes them to a human agent |
-| 👤 **User Authentication** | Login and registration system with session management and multi-role support |
-| 📊 **Agent Dashboard** | Separate dashboard for bank officers to view all escalated conversations |
-| 🌙 **Dark / Light Mode** | Toggle between dark and light themes — preference saved in session |
-| 📄 **Answer Source Labels** | Every response shows whether it came from 📄 bank documents or 🌐 web search |
-| 🎨 **Premium UI** | Clean, professional banking interface built with custom CSS |
+|----------|-------------|
+| 🔍 RAG-Powered Answers | Retrieves information from bank documents using ChromaDB |
+| 🌐 Web Search Fallback | Uses Tavily when document retrieval is insufficient |
+| 🧠 Conversation Memory | Maintains chat context within a session using LangChain chat history |
+| 😤 Sentiment Analysis | Detects customer frustration using VADER |
+| ⚡ Smart Escalation | Automatically escalates highly negative conversations |
+| 👤 Authentication System | Login and registration system with session management |
+| 🖼️ Profile Pictures | Optional profile image upload during registration |
+| 👍 Feedback System | Collects user feedback on chatbot responses |
+| 🌙 Dark / Light Mode | Theme switching with a single click |
+| 🚦 Rate Limiting | Limits users to 20 queries per session |
+| 📈 Session Analytics | Real-time sidebar statistics and usage metrics |
+| 💾 SQLite Logging | Stores escalations, feedback, and query history in SQLite |
+| 🎨 Premium Banking UI | Modern banking-themed Streamlit interface |
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️  System Architecture
 
-```
 Customer Message
        │
        ▼
@@ -41,221 +44,237 @@ Sentiment Analysis (VADER)
 Frustrated  Normal
   │         │
   ▼         ▼
-Escalate   RAG Chain
-to Agent   (LLM + ChromaDB)
+Escalate   RAG Retrieval
+to Agent   (ChromaDB)
   │         │
   ▼         ▼
-Log to     Answer found?
-CSV           │
-         ┌────┴────┐
-         │         │
-        Yes        No
-         │         │
-         ▼         ▼
-    📄 Return   🌐 Tavily Web
-    Doc Answer  Search Fallback
-                    │
-                    ▼
-              Re-answer via LLM
-              using web context
-```
+Log to     Generate Answer
+SQLite        │
+              ▼
+      Answer Found?
+         │
+    ┌────┴────┐
+    │         │
+   Yes        No
+    │         │
+    ▼         ▼
+📄 Document   🌐 Tavily Search
+Answer        Fallback
+                  │
+                  ▼
+           Re-answer via LLM
+                  │
+                  ▼
+        Store Conversation Memory
 
 ---
 
-## 🛠️ Tech Stack
+## 📁  Project Structure
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | Streamlit with custom CSS + Dark/Light mode |
-| **LLM** | Groq API — llama-3.3-70b-versatile (free tier) |
-| **RAG Framework** | LangChain |
-| **Vector Database** | ChromaDB |
-| **Embeddings** | HuggingFace sentence-transformers/all-MiniLM-L6-v2 |
-| **Web Search** | Tavily Search API (fallback when RAG is insufficient) |
-| **Sentiment Analysis** | VADER (vaderSentiment) |
-| **PDF Processing** | PyMuPDF (fitz) |
-| **Environment** | Python 3.10+, Virtual Environment |
-
----
-
-## 📁 Project Structure
-
-```
 bank-bot/
-├── docs/                     ← Bank PDF documents (knowledge base)
-├── vectorstore/              ← ChromaDB vector embeddings (auto-generated)
-├── ingest.py                 ← Reads PDFs and builds vector database
-├── sentiment.py              ← Sentiment scoring and escalation logic
-├── rag_chain.py              ← RAG pipeline connecting LLM to vector DB
-├── app.py                    ← Main Streamlit chat UI (with dark mode + web search)
-├── agent_dashboard.py        ← Human agent escalation dashboard
-├── escalation_log.csv        ← Auto-generated log of flagged conversations
-├── .env                      ← Secret API keys (never commit this)
-├── requirements.txt          ← Python dependencies
-└── README.md                 ← This file
-```
+├── docs/                     ← Bank PDF documents
+├── vectorstore/              ← ChromaDB vector embeddings
+├── app.py                    ← Main Streamlit application
+├── bankai.db                 ← SQLite database
+├── .env                      ← API keys
+├── requirements.txt          ← Dependencies
+└── README.md                 ← Project documentation
 
 ---
 
-## ⚙️ Setup Instructions
+## 👤 User Authentication
 
-### Step 1 — Clone the repository
+BANKAI includes a complete authentication system:
 
-```bash
-git clone https://github.com/sourav2212/BANKBOT.git
-cd bank-bot
-```
+- Sign In with existing account
+- Register a new account
+- Optional profile picture upload
+- Session-based authentication
+- Demo accounts for testing
+- Automatic session initialization
 
-### Step 2 — Create and activate virtual environment
-
-```bash
-# Create
-python -m venv venv
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Activate (Mac/Linux)
-source venv/bin/activate
-```
-
-### Step 3 — Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### Step 4 — Set up environment variables
-
-Create a `.env` file in the project root:
-
-```
-GROQ_API_KEY=your_groq_api_key_here
-TAVILY_API_KEY=your_tavily_api_key_here
-```
-
-- Get a free Groq API key at [console.groq.com](https://console.groq.com)
-- Get a free Tavily API key at [app.tavily.com](https://app.tavily.com) *(1000 searches/month free)*
-
-### Step 5 — Add bank PDF documents
-
-Place your bank's PDF documents inside the `docs/` folder.
-These can be:
-- Customer FAQ documents
-- Account opening guides
-- Loan policy documents
-- Service charge schedules
-- KYC requirement documents
-
-### Step 6 — Ingest PDFs into vector database
-
-```bash
-python ingest.py
-```
-
-This reads all PDFs, splits them into chunks, converts them to embeddings, and stores them in ChromaDB. Run this once, or whenever you add new PDFs.
-
-### Step 7 — Run the chat application
-
-```bash
-streamlit run app.py
-```
-
-Open your browser at: `http://localhost:8501`
-
-### Step 8 — Run the agent dashboard (optional, separate terminal)
-
-```bash
-streamlit run agent_dashboard.py --server.port 8502
-```
-
-Open your browser at: `http://localhost:8502`
-
----
-
-## 🔐 Demo Login Credentials
+### Demo Accounts
 
 | Username | Password | Role |
-|---|---|---|
-| `demo` | `demo123` | Customer |
-| `sourav` | `sourav123` | Developer |
-| `manager` | `bank2024` | Manager |
-| `admin` | `admin123` | Admin |
-
-You can also register a new account directly from the login screen.
+|----------|----------|------|
+| demo | demo123 | Customer |
+| sourav | sourav123 | Developer |
+| manager | bank2024 | Manager |
+| admin | admin123 | Admin |
 
 ---
 
-## 🧠 How RAG + Web Search Works
+## 🧠 Conversation Memory
 
-1. Bank PDFs are loaded and split into 500-character chunks
-2. Each chunk is converted into a vector embedding using sentence-transformers
-3. All embeddings are stored in ChromaDB (local vector database)
-4. When a customer asks a question, the top 3 most relevant chunks are retrieved
-5. These chunks + the question are sent to the Groq LLM
-6. **If the LLM responds with "I don't have that information"** → Tavily web search is triggered automatically
-7. Web search results are passed back to the LLM for a final, grounded answer
-8. Every response is labelled with its source — 📄 documents or 🌐 web
+BANKAI uses LangChain's InMemoryChatMessageHistory to maintain context throughout a user's session.
 
-This ensures the bot never makes up information, and never leaves a question unanswered.
+Benefits:
+
+- Remembers previous questions
+- Supports follow-up queries
+- Provides contextual responses
+- Improves customer experience
+
+Example:
+
+Customer: "What is the home loan rate?"
+
+Bot: "The home loan rate is 8.5%."
+
+Customer: "What documents do I need?"
+
+Bot: Understands the customer is still referring to a home loan and answers accordingly.
 
 ---
 
-## 😤 How Sentiment Escalation Works
+## 💾 SQLite Database Logging
 
-Every customer message is scored by VADER sentiment analysis:
+BANKAI uses SQLite instead of CSV files for persistent logging.
+
+### Tables
+
+#### Escalations
+
+Stores:
+
+- Timestamp
+- Username
+- Message
+- Sentiment score
+- Sentiment label
+
+#### Feedback
+
+Stores:
+
+- Timestamp
+- Username
+- Question
+- Answer
+- Rating (👍 / 👎)
+- Source
+
+#### Query Log
+
+Stores:
+
+- Timestamp
+- Username
+- Customer question
+- Response source
+
+Database file:
+
+bankai.db
+
+---
+
+## 👍 Feedback Collection
+
+Every AI response includes:
+
+👍 Helpful
+
+👎 Not Helpful
+
+Feedback is automatically stored in SQLite and can be used for:
+
+- Performance monitoring
+- Model improvement
+- Customer satisfaction tracking
+
+---
+
+## 🚦 Rate Limiting
+
+To prevent abuse and excessive API usage:
+
+- Maximum 20 queries per session
+- Remaining queries displayed in sidebar
+- User notified when limit is reached
+
+---
+
+## 📈 Session Analytics
+
+The sidebar provides real-time statistics:
+
+- Total Queries
+- Escalations
+- Positive Conversations
+- Web Search Hits
+
+This helps administrators monitor usage patterns and chatbot performance.
+
+---
+
+## 😤 Smart Escalation
+
+Messages with sentiment score ≤ -0.6 are automatically escalated.
+
+When escalation occurs:
+
+- Customer receives an apology message
+- Escalation is logged to SQLite
+- Conversation is flagged for human review
+
+Sentiment ranges:
 
 | Score Range | Label | Action |
-|---|---|---|
-| -1.0 to -0.6 | 😤 FRUSTRATED | Escalate to human agent + log to CSV |
-| -0.6 to 0.05 | 😐 NEUTRAL | Answer normally via RAG / web |
-| 0.05 to 1.0 | 😊 POSITIVE | Answer normally via RAG / web |
-
-When escalation is triggered:
-- Customer receives an empathetic response
-- Conversation is logged to `escalation_log.csv` with timestamp, message, and score
-- Bank officer can view all escalations on the agent dashboard at port 8502
+|-------------|--------|---------|
+| -1.0 to -0.6 | 😤 FRUSTRATED | Escalate |
+| -0.6 to 0.05 | 😐 NEUTRAL | Answer Normally |
+| 0.05 to 1.0 | 😊 POSITIVE | Answer Normally |
 
 ---
 
 ## 🌙 Dark / Light Mode
 
-- Toggle button (🌙 / ☀️) available in the top bar after login
-- Switches the entire UI between a dark navy theme and a clean light theme
-- Preference is saved in session state for the duration of the conversation
+Features:
+
+- One-click theme toggle
+- Professional banking UI
+- Dark mode optimized for long sessions
+- Light mode for daytime usage
 
 ---
 
-## 📊 Agent Dashboard Features
+## ⚠️ Note on Agent Dashboard
 
-- Total escalation count
-- Average sentiment score
-- Most recent escalation timestamp
-- Most urgent message highlighted
-- Full table of all flagged conversations
-- Download escalation log as CSV
+The current version focuses on the customer-facing chatbot application.
 
----
+Future versions may include:
 
-## 🚀 Deployment
-
-### Deploy on Streamlit Cloud (free)
-
-1. Push your project to GitHub (make sure `.env` is in `.gitignore`)
-2. Go to [streamlit.io/cloud](https://streamlit.io/cloud)
-3. Sign in with GitHub → New App → select your repository
-4. Set main file path to `app.py`
-5. Go to Advanced Settings → Secrets and add:
-
-```toml
-GROQ_API_KEY = "your_groq_api_key_here"
-TAVILY_API_KEY = "your_tavily_api_key_here"
-```
-
-6. Click Deploy — your app goes live with a public URL in 2-3 minutes
+- Dedicated agent dashboard
+- Escalation management
+- Advanced analytics
+- Ticket assignment workflow
 
 ---
 
+## 🚀 Additional Enhancements Implemented
+
+✔ Session-based conversation memory
+
+✔ SQLite logging system
+
+✔ User registration
+
+✔ Profile picture upload
+
+✔ Feedback collection
+
+✔ Query rate limiting
+
+✔ Real-time analytics
+
+✔ Enhanced banking UI
+
+✔ Dark/Light mode
+
+✔ Web search fallback
+
+✔ Smart escalation system
 ## 📦 Dependencies
 
 ```
